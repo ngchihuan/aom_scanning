@@ -14,8 +14,8 @@ import json
 import numpy as np
 Power_meter_address = '/dev/serial/by-id/usb-Centre_for_Quantum_Technologies_Optical_Power_Meter_OPM-QO04-if00'
 # location of devices
-DDS_address = '/dev/ioboards/dds_QO0037'
-DDS_channel = 1
+#DDS_address = '/dev/ioboards/dds_QO0037'
+#DDS_channel = 1
 pm = PowerMeterComm(Power_meter_address)
 
 pm.set_range(3)
@@ -33,24 +33,6 @@ power_set = 0.01
 
 #cal_data = np.genfromtxt('power_calibrationup.txt')
 wavelength=780
-
-def power_convertion(freq_point,power_set,cal_data):#Converts set power to ampunits at specific frequency
-   
-    convertion_factor = 1000#May have to change this offten if input power to AOM changes
-    xdata = cal_data[:,0]
-    ydata = cal_data[:,1]
-    i = np.where(xdata==(float(freq_point)))
-    power_cal_factor = 1/(ydata[i]/np.max(ydata))
-    ampunits = int(convertion_factor*power_cal_factor)
-    if ampunits > 1024:
-        print ('Maximium DDS power reached')
-        ampunits = 1024
-    elif ampunits < 2:
-        print ('Minimium DDS power reached')
-        ampunits = 1
-    else:
-        ampunits = ampunits
-    return ampunits
 def scanfreq(cal_data,channel,DDS_address,fixamp=0):
     '''
     Scan aom frequency with either fix rf power or varied rf power stored in
@@ -58,21 +40,23 @@ def scanfreq(cal_data,channel,DDS_address,fixamp=0):
     Frequency scanning range is stored in cal_data
     cal_data: exported from the power_calibration.py script
     cal_data[:,0]: frequency
-    cal_data[:,1]: rf power
+    cal_data[:,1]: RF power
     
-    scanfreq(cal_data,channel,fixamp=0)
+    COMMANDS:   scanfreq(cal_data,channel,fixamp=0)
+    
+                cal_data: calibration table
+                channel: dds channel    
+                DDS_address: DDS_address devices
+                fixamp=0: use rf power from the calibration table
+                fixamp!=0: use fixed rf power
 
-    cal_data: calibration table
-    channel: dds channel    
-    DDS_address: DDS_address devices
-    fixamp=0: use rf power from the calibration table
-    fixamp!=0: use fix rf power
-    
-    return(freq,amp,powers,freq_wmt)
-    freq: nparray scanning frequency of aom
-    amp: nparray scanning rf power of aom
-    powers: powers measured on optical powermeter while scanning aom
-    freq_wmt: freq measured by wavemeter
+    RETURNS:
+                return(freq,amp,powers,freq_wmt)
+                
+                freq: nparray scanning frequency of aom
+                amp: nparray scanning rf power of aom
+                powers: powers measured on optical powermeter while scanning aom
+                freq_wmt: freq measured by wavemeter
     '''
     dds = DDSComm(DDS_address,channel)
     freq=cal_data[:,0]
@@ -80,7 +64,7 @@ def scanfreq(cal_data,channel,DDS_address,fixamp=0):
         amp=cal_data[:,1]
     else:
         amp=fixamp*np.ones(len(cal_data[:,0]))
-    powers=[]
+    powers=[]#powers: powers measured on optical powermeter while scanning aom
     freq_wmt=[]#frequency measured wavemeter
     average=100
     for i in range(len(freq)):
