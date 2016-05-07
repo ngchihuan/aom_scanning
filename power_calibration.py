@@ -8,57 +8,81 @@ VERSION: 1.1
 
 AUTHOR: CHI HUAN
 
-USAGE:  Scanning aom and correct for the misalignment coupling into fibre 
-        by adjusting rf power
+USAGE:  Scanning aom and measure optical power 
+        
+        Able to correct non-uniform optical power due to the misalignment coupling into fibre 
+        by adjusting rf power into aom
 
-COMMANDS:   
+SOFTWARE ARCHITECTURE: 
 
+COMMANDS:   To scan aom freq and measure optical power without adjustment
+            aom_scan(freq_range)
+            
+            To scan aom freq and measure optical power with a calibrated rf power
+            aom_scan(cal_data=calibrated data under a form of array)
+            
+            To run the adjustment mode 1st time without precalibrated values:
+            aom_scan(freq_range=,*all the parameters,cf=True)
+            
+            To run the adjustment mode 1st time without precalibrated values:
+            aom_scan(cal_data=,cf=True)
 OUTPUT:
 
 REMARK: Using ADC power meter.
 """
+
 from CQTdevices import DDSComm, PowerMeterComm, WindFreakUsb2
 import matplotlib.pylab as plt
 import numpy as np
 import time
 
+
+
 # location of devices
-Power_meter_address = '/dev/serial/by-id/usb-Centre_for_Quantum_Technologies_Optical_Power_Meter_OPM-QO04-if00'
-#location of DDS and DDS channel
+#Power_meter_address = '/dev/serial/by-id/usb-Centre_for_Quantum_Technologies_Optical_Power_Meter_OPM-QO04-if00'
+
 DDS_address = '/dev/ioboards/dds_QO0037'
 DDS_channel = 0
-
-#Connect to devices and create objects
-pm = PowerMeterComm(Power_meter_address)
 dds = DDSComm(DDS_address,DDS_channel)
-pm.set_range(3)
+#Connect to devices and create objects
 #wind = WindFreakUsb2('/dev/serial/by-id/usb-Windfreak_Synth_Windfreak_CDC_Serial_014571-if00')
-
-
-#Frequency AOM range to scan in MHz
-start = 139
-stop = 211
+#Frequency range to scan in MHz
+start = 150
+stop = 221
 step = 10
 freq_range = np.arange(start,stop,step)
-#init power and freq to aom
+
 init_power=200
 init_freq=180
-#initset_power: starting value of rf power for the adjustment
-initset_power=100
-#max_power: limit maximum rf power that can be set to aom to prevent the damage
-max_power=800
-dds.set_power(initset_power)
-dds.set_freq(init_freq)
 
-def power_scan(freq_range,average=50,wavelength=780,target_power=0.01/1000,setpower_tolerance=0.001/1000,cf=False):
-    #cf=True: run adjustment algorithm, default=False: just scan aom freq
+
+initset_power=150
+dds.set_power(initset_power)
+max_power=600
+
+def aom_scan(freq_range=[],average=20,target_power=0.1/1000,setpower_tolerance=1e-6,wavelength=780,cf=False,cal_data=[],initset_power=150,k1=1e5,pm_setrange=3):
+    if freq_range==[] && cal_data==[]:
+        print ("Specify freq_scan by either freq_range or calibrated table cal_data" )
+        return
+    Power_meter_address = '/dev/serial/by-id/usb-Centre_for_Quantum_Technologies_Optical_Power_Meter_OPM-QO04-if00'
     pm = PowerMeterComm(Power_meter_address)
-    dds = DDSComm(DDS_address,DDS_channel)
-    pm.set_range(3)
-    powers = [] #optical power measured without adjustment
-    powers_adj=[] #optical power measured with adjustment
-    setpower=[] #adjusted rf power set to aom
+    pm.set_range(pm_setrange)
+    initset_power=initset_power
+    powers = []
+    powers_adj=[]
+    setpower=[]
+    setpower_track=[]
+    powers_track=[]
+    if cal_data!=[]:
+        freq_range=cal_data[:,0]
+        amp=cal_data[:,1]
     for i in range(len(freq_range)):
+        if cal_data!=[]:
+            dds.set_power(amp[i])
+            ps=amp[i]
+        else:
+            dds.set_power(init_power)
+            ps=initset_power
         dds.set_freq(freq_range[i])#set freq point
         #wind.set_freq(freq_range[i])
         value = []
@@ -71,50 +95,49 @@ def power_scan(freq_range,average=50,wavelength=780,target_power=0.01/1000,setpo
         print('freq:',freq_range[i])
         print(p)
         powers.append(np.mean(value)) #average value to get more reliable number
-        t=1
-        ps=initset_power
         num_turn=0
         if cf==True:
+            
             while( (p<(target_power-setpower_tolerance)) or (p>(target_power+setpower_tolerance)) ):
-                sign=0
-                if p>target_power:
-                    sign=-1
-                else:
-                    sign=1
-                t=abs(p-target_power)*1e5
+                deltap=(target_power-p)
+                e=deltap
+                deltaps=k1*e
+                ps=ps+deltaps
                 print('freq:',freq_range[i])
-                print('delp:',str(p-target_power))
-                print('tstep:',t)
-                ps=ps+sign*t
+                print('delp:',str(deltap))
+                print('step:',str(deltaps))
+                
                 print('powerset:',ps)
                 dds.set_power(int(ps))
+                setpower_track.append(ps)
                 value=[]
                 for m in range(average):
                     power = pm.get_power(wavelength)
                     value.append(power)
-                    time.sleep(5e-3) # delay between asking for next value
+                    time.sleep(5e-2) # delay between asking for next value
                 p=np.mean(value)
+                powers_track.append(p)
                 print(p)
                 num_turn=num_turn+1
-                if ((ps>max_power) or (ps<0) or (num_turn>100)):
+                if ((ps>max_power) or (ps<0) or (num_turn>300)):
                     break
             setpower.append(int(ps))
             value=[]
             for m in range(average):
                 power = pm.get_power(wavelength)
                 value.append(power)
-                time.sleep(5e-3) # delay between asking for next value
+                time.sleep(5e-2) # delay between asking for next value
             powers_adj.append(np.mean(value))
     dds.set_power(init_power)
     dds.set_freq(init_freq)
-    return (np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower) # Convert to mW
+    return (np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower,setpower_track,powers_track) # Coonvert to mW
 
-
-#Calibration procedure
 if __name__=="__main__":
-    pm.set_range(3) # set suitable range for optical power being measured    
+    pm.set_range(3) # set suitable range for optical power being measured
+    #to scan aom freq and measure optical power without adjustment
+    #power_scan(freq_range)
     # set starting power make it low to ensure have enough adjustment when far from AOM resonance
-    re=power_scan(freq_range,cf=True)
+    re=aom_scan(freq_range,cf=True)
     powers_adj=[]
     powers = re[1]#run scan should take about a minute with 10 averages
     powers_adj = re[0]
@@ -129,7 +152,7 @@ if __name__=="__main__":
     plt.plot(freq_range,setpower,'-o',color='black')#plot data to make sure it makes sense1
     plt.show()
     data = np.column_stack((freq_range,setpower,powers,powers_adj))
-    np.savetxt('test.txt',data)
+    np.savetxt('power_calibrationup.txt',data)
     
     
         
