@@ -3,6 +3,40 @@
 Created on Tue Apr 12 14:20:56 2016
 
 @author: NgChiHuan
+
+FREQ SCANNING BY 2 AOM
+
+VERSION: 1.1
+
+AUTHOR: CHI HUAN
+
+USAGE: 
+        Scan optical beam frequency up and down with 2 Double Pass AOM
+        
+        Able to choose optical detection method: apd or power meter
+
+        Scan with fix rf power to AOM or rf power retrieved from the 
+        pre-calibrated files
+        
+COMMANDS:   scan_updown(fs,fst,device,tableup,tabledown,directo,step=2,fixrfp=False,detector='pm'):
+            
+            fs,fst: starting and final scanning freq
+            device: DDS address
+            tableup/down: calibrated file for aom up/down
+            directo: path to store timestamp file
+            step: scanning step
+            fixfrp=False: if True, extra 1 more round of scanning with fix rf 
+                            power to aom
+            detector=optical detection method
+
+OUTPUT:     (freq,np.array(powers)*1e6,np.array(powers_adj)*1e6)
+            freq: scanning freq
+            powers: optical power without adjustment
+            power_adj: ~ with adjustment
+        
+        
+        
+                
 """
 
 from CQTdevices import DDSComm, PowerMeterComm, WindFreakUsb2
@@ -10,9 +44,10 @@ import matplotlib.pylab as plt
 import numpy as np
 import time
 import timestampcontrol as tsc
+
 def setdds(table,channel,device,freq=180,fixamp=50):
     '''
-    Fetch the amp of dds rf from the calibration table(table) for the corresonding freq will send command to dds via CQTDevices 
+    Retrieve rf power set to DDS for a frequency from the calibrated table(an array)
     '''
     DDS_address = device
     DDS_channel = channel
@@ -27,7 +62,14 @@ def setdds(table,channel,device,freq=180,fixamp=50):
     dds.set_freq(freq)
     dds.set_power(int(amp))
     return (amp)
-def scanprobe_logic(freq,tableup,tabledown,device,fixamp=50):
+    
+def scan_logic(freq,tableup,tabledown,device,fixamp=50):
+    '''
+    determine the rf freq needed to set to two double pass aom (one up and one down)
+    and send command to dds with these freq and power=fixamp
+    if freq optical=2=> aom up=176, down=175
+    '''
+    
     datup=np.genfromtxt(tableup)
     datdown=np.genfromtxt(tabledown)
     
@@ -40,11 +82,13 @@ def scanprobe_logic(freq,tableup,tabledown,device,fixamp=50):
     l_down=len(f_down)    
     
     step=2
+    #the maximum and minimum freq can be scanned
     maxf=2*(f_up[l_up-1]-f_down[0])
     minf=2*(f_up[0]-f_down[l_down-1])
+    
     ifreq=175#init f
     if (freq>0):
-        if ((freq/2)%2==0):
+        if ((freq%4)==0):
             f_down=ifreq-freq/4
             f_up=ifreq+freq/4
             
@@ -66,11 +110,16 @@ def scanprobe_logic(freq,tableup,tabledown,device,fixamp=50):
            f_up=ifreq
            f_down=ifreq
     print('fup fdown ampup ampdown')
-    print(f_up, f_down)           
+    print(f_up, f_down)        
+    #command dds to 2 aom
     ampd=setdds(datdown,0,device,freq=f_down,fixamp=fixamp)
     ampu=setdds(datup,1,device,freq=f_up,fixamp=fixamp)
     
-def scanprobe_updown(fs,fst,device,tableup,tabledown,directo,step=2,fixrfp=False,detector='pm'):
+def scan_updown(fs,fst,device,tableup,tabledown,directo,step=2,fixrfp=False,detector='pm'):
+    '''
+    scan laser beam freq with 2 aoms 
+    optical power measurement= powermeter(pm) or apd(using timestamp)
+    '''
     if detector=='pm': 
         Power_meter_address = '/dev/serial/by-id/usb-Centre_for_Quantum_Technologies_Optical_Power_Meter_OPM-QO04-if00'
         pm = PowerMeterComm(Power_meter_address)
@@ -82,7 +131,7 @@ def scanprobe_updown(fs,fst,device,tableup,tabledown,directo,step=2,fixrfp=False
     powers_adj=[]
     powers=[]
     for i in range(len(freq)):
-        scanprobe_logic(freq[i],tableup,tabledown,device,fixamp=0)#adjust power for compensation
+        scan_logic(freq[i],tableup,tabledown,device,fixamp=0)#adjust power for compensation
         #wind.set_freq(freq_range[i])
         value = []
         time.sleep(5)
@@ -101,7 +150,7 @@ def scanprobe_updown(fs,fst,device,tableup,tabledown,directo,step=2,fixrfp=False
                 tsc.stop()
                 time.sleep(1)
         if fixrfp==True:
-            scanprobe_logic(freq[i],tableup,tabledown,device,fixamp=180)
+            scan_logic(freq[i],tableup,tabledown,device,fixamp=180)
             value = []
             time.sleep(5)
             p=0
@@ -126,8 +175,8 @@ if __name__=='__main__':
     powers=[]
     powers_adj=[]
     directo='probescan/set1'
-    #scanprobe_logic(0,tableup,tabledown,DDS_address,fixamp=0)#adjust power for compensation
-    (freq,powers,powers_adj)=scanprobe_updown(-100,100,DDS_address,tableup,tabledown,directo,step=8,detector='apd')
+    #scan_logic(0,tableup,tabledown,DDS_address,fixamp=0)#adjust power for compensation
+    (freq,powers,powers_adj)=scan_updown(-100,100,DDS_address,tableup,tabledown,directo,step=8,detector='apd')
     plt.plot(freq,powers,'-o')
     plt.plot(freq,powers_adj,'-o',color='red')
     plt.show()

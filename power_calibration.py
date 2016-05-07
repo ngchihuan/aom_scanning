@@ -26,9 +26,15 @@ COMMANDS:   To scan aom freq and measure optical power without adjustment
             
             To run the adjustment mode 1st time without precalibrated values:
             aom_scan(cal_data=,cf=True)
-OUTPUT:
 
-REMARK: Using ADC power meter.
+OUTPUT:     (freq_range,np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower,setpower_track,powers_track)
+            freq: scanning freq
+            powers_adj: optical power detected after adjustment algorithm
+            pwoer: bare optical power without adjustment
+            setpower: rf power set to aom by the adjustment algorithm
+            
+REMARK:     Using ADC optical power meter.Pay attention to the power_range of the
+            power meter.
 """
 
 from CQTdevices import DDSComm, PowerMeterComm, WindFreakUsb2

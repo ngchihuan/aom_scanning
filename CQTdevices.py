@@ -4,6 +4,7 @@ Created on Wed Jun 10 15:13:21 2015
 
 @author: nick
 Chi Huan modified for personal funs and python3
+v1.0
 """
 
 import serial
