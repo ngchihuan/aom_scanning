@@ -130,7 +130,7 @@ def aom_scan(freq_range=[],average=20,target_power=0.1/1000,setpower_tolerance=1
             powers_adj.append(np.mean(value))
     dds.set_power(init_power)
     dds.set_freq(init_freq)
-    return (np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower,setpower_track,powers_track) # Coonvert to mW
+    return (freq_range,np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower,setpower_track,powers_track) # Coonvert to mW
 
 if __name__=="__main__":
     pm.set_range(3) # set suitable range for optical power being measured
@@ -139,9 +139,9 @@ if __name__=="__main__":
     # set starting power make it low to ensure have enough adjustment when far from AOM resonance
     re=aom_scan(freq_range,cf=True)
     powers_adj=[]
-    powers = re[1]#run scan should take about a minute with 10 averages
-    powers_adj = re[0]
-    setpower= re[2]
+    powers = re[2]#run scan should take about a minute with 10 averages
+    powers_adj = re[1]
+    setpower= re[3]
     plt.plot(freq_range,powers,'-o')#plot data to make sure it makes sense
     plt.plot(freq_range,powers_adj,'-o',color='red')#plot data to make sure it makes sense
     
