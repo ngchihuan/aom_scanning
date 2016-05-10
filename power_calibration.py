@@ -30,11 +30,16 @@ COMMANDS:   To scan aom freq and measure optical power without adjustment
 OUTPUT:     (freq_range,np.array(powers_adj)*1000.0,np.array(powers)*1000,setpower,setpower_track,powers_track)
             freq: scanning freq
             powers_adj: optical power detected after adjustment algorithm
-            pwoer: bare optical power without adjustment
+            power: bare optical power without adjustment
             setpower: rf power set to aom by the adjustment algorithm
             
 REMARK:     Using ADC optical power meter.Pay attention to the power_range of the
             power meter.
+            
+            Convention to save calibrated data into textfile:
+            data = np.column_stack((freq_range,setpower,powers,powers_adj))
+            np.savetxt('power_calibrationup.txt',data)
+            
 """
 
 from CQTdevices import DDSComm, PowerMeterComm, WindFreakUsb2
